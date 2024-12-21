@@ -17,7 +17,6 @@ public class WebSocketEventListener {
     private static final Logger log = LoggerFactory.getLogger(WebSocketEventListener.class);
     private final SimpMessageSendingOperations messagingTemplate;
 
-    // Constructor to initialize final fields
     public WebSocketEventListener(SimpMessageSendingOperations messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
