@@ -40,7 +40,7 @@ public class WebSocketEventListener {
             // Optionally broadcast updated user count
             messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
 
-            System.out.println("Active Users: "+activeUsers);
+            log.info("Active Users: {}", activeUsers);
         }
     }
 
@@ -59,6 +59,7 @@ public class WebSocketEventListener {
 
             // Optionally broadcast updated user count
             messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
+            log.info("Active Users after disconnecting: {}", activeUsers);
         }
     }
 }
