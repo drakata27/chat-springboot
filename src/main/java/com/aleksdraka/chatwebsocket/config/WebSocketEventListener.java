@@ -47,19 +47,23 @@ public class WebSocketEventListener {
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        String username = (String) Objects.requireNonNull(headerAccessor.getSessionAttributes()).get("username");
+        String sessionId = headerAccessor.getSessionId();
 
-        if (username != null) {
-            log.info("Disconnected from {}", username);
-            var chatMessage = ChatMessage.builder()
-                    .type(MessageType.LEAVE)
-                    .sender(username)
-                    .build();
-            messagingTemplate.convertAndSend("/topic/public", chatMessage);
+        if (sessionId != null) {
+            String username = activeUsers.remove(sessionId);
+            if (username != null) {
+                log.info("Disconnected from {}", username);
 
-            // Optionally broadcast updated user count
-            messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
-            log.info("Active Users after disconnecting: {}", activeUsers);
+                var chatMessage = ChatMessage.builder()
+                        .type(MessageType.LEAVE)
+                        .sender(username)
+                        .build();
+                messagingTemplate.convertAndSend("/topic/public", chatMessage);
+
+                // Optionally broadcast updated user count
+                messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
+                log.info("Active Users after disconnecting: {}", activeUsers);
+            }
         }
     }
 }
