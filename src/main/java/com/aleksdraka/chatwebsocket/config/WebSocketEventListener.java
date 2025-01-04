@@ -23,18 +23,16 @@ public class WebSocketEventListener {
     public WebSocketEventListener(SimpMessageSendingOperations messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
-
-    // Add to WebSocketEventListener
     private final ConcurrentMap<String, String> activeUsers = new ConcurrentHashMap<>();
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        String username = headerAccessor.getFirstNativeHeader("username"); // Retrieve username from headers
+        String username = headerAccessor.getFirstNativeHeader("username");
         String sessionId = headerAccessor.getSessionId();
 
         if (username != null) {
-            activeUsers.put(sessionId, username); // Add user to active map
+            activeUsers.put(sessionId, username);
             log.info("User connected: {}", username);
 
             // Optionally broadcast updated user count
@@ -60,7 +58,6 @@ public class WebSocketEventListener {
                         .build();
                 messagingTemplate.convertAndSend("/topic/public", chatMessage);
 
-                // Optionally broadcast updated user count
                 messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
                 log.info("Active Users after disconnecting: {}", activeUsers);
             }
