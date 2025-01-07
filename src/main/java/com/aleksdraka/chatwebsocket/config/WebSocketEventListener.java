@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -23,22 +22,22 @@ public class WebSocketEventListener {
     public WebSocketEventListener(SimpMessageSendingOperations messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
     }
-    private final ConcurrentMap<String, String> activeUsers = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ConcurrentMap<String, String>> roomUsers = new ConcurrentHashMap<>();
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String username = headerAccessor.getFirstNativeHeader("username");
+        String roomId = headerAccessor.getFirstNativeHeader("roomId");
         String sessionId = headerAccessor.getSessionId();
 
         if (username != null) {
-            activeUsers.put(sessionId, username);
+            roomUsers.computeIfAbsent(roomId, k -> new ConcurrentHashMap<>()).put(sessionId, username);
             log.info("User connected: {}", username);
 
-            // Optionally broadcast updated user count
-            messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
-
-            log.info("Active Users: {}", activeUsers);
+            int userCount = roomUsers.get(roomId).size();
+            messagingTemplate.convertAndSend("/topic/" + roomId + "/userCount", userCount);
+            log.info("Users in room {} after new connection: {}", roomId, roomUsers.get(roomId));
         }
     }
 
@@ -47,20 +46,25 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
 
-        if (sessionId != null) {
-            String username = activeUsers.remove(sessionId);
-            if (username != null) {
-                log.info("Disconnected from {}", username);
+        roomUsers.forEach((roomId, users) -> {
+            if (users.containsKey(sessionId)) {
+                String username = users.remove(sessionId);
+                log.info("User {} disconnected from room {}", username, roomId);
 
-                var chatMessage = ChatMessage.builder()
+                ChatMessage chatMessage = ChatMessage.builder()
                         .type(MessageType.LEAVE)
                         .sender(username)
                         .build();
-                messagingTemplate.convertAndSend("/topic/public", chatMessage);
+                messagingTemplate.convertAndSend("/topic/" + roomId, chatMessage);
 
-                messagingTemplate.convertAndSend("/topic/userCount", activeUsers.size());
-                log.info("Active Users after disconnecting: {}", activeUsers);
+                messagingTemplate.convertAndSend("/topic/" + roomId + "/userCount", users.size());
+                log.info("Users in room {} after disconnect: {}", roomId, users);
+
+                if (users.isEmpty()) {
+                    roomUsers.remove(roomId);
+                    log.info("Room {} is now empty and removed.", roomId);
+                }
             }
-        }
+        });
     }
 }
